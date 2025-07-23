@@ -71,7 +71,7 @@ jobs:
           scan_path: './target'
 
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@master
+        uses: SonarSource/sonarqube-scan-action@main
         with:
           projectBaseDir: .
           args: >
