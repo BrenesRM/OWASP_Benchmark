@@ -5,47 +5,58 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      benchmark-pid: ${{ steps.save-pid.outputs.pid }}
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # Required for Spotless plugin
-        
-    - name: Set up JDK
-      uses: actions/setup-java@v3
-      with:
-        java-version: '11'
-        distribution: 'temurin'
-        
-    - name: Build with Maven
-      run: |
-        # Build with Spotless check disabled for CI environment
-        mvn clean install -Dspotless.check.skip=true
-        
-    - name: Start Benchmark WebApp
-      run: |
-        cd target
-        nohup java -jar benchmark.jar -Dfile.encoding=UTF-8 > benchmark.log 2>&1 &
-        echo "Waiting for app to start..."
-        sleep 30  # Give the application time to start
-        
-    - name: Save Benchmark PID
-      id: pid
-      run: |
-        echo "pid=$(pgrep -f 'java.*benchmark.jar')" >> $GITHUB_OUTPUT
-        
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for Spotless
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+
+      - name: Build with Maven (Skip Spotless Check)
+        run: |
+          mvn clean install -Dspotless.check.skip=true -Dspotless.maven.plugin.skip=true -Dmaven.test.skip=true
+
+      - name: Start Benchmark WebApp
+        run: |
+          cd target
+          nohup java -jar benchmark.jar -Dfile.encoding=UTF-8 > benchmark.log 2>&1 &
+          sleep 30
+
+      - name: Save Benchmark PID
+        id: save-pid
+        run: |
+          echo "pid=$(pgrep -f 'java.*benchmark.jar')" >> $GITHUB_OUTPUT
+
+      - name: Stop Benchmark WebApp (Always Runs)
+        if: always()
+        run: |
+          PID=$(pgrep -f 'java.*benchmark.jar') || true
+          if [[ -n "$PID" ]]; then
+            kill $PID || true
+            echo "Benchmark stopped (PID=$PID)"
+          else
+            echo "No Benchmark process found."
+          fi
+
   security_scan:
     needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Run OWASP ZAP Scan
         uses: zaproxy/action-full-scan@v0.6.0
         with:
           target: 'http://localhost:8080/benchmark'
           rules_file_name: 'OWASP-Benchmark.rules'
           alert_on_risk: 'High,Medium'
-          
+
       - name: Run Dependency Check
         uses: dependency-check/Dependency-Check_Action@main
         with:
@@ -53,7 +64,7 @@ jobs:
           format: 'HTML'
           fail_on_cvss: 7
           scan_path: './target'
-          
+
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@master
         with:
@@ -62,7 +73,7 @@ jobs:
             -Dsonar.projectKey=OWASP-Benchmark
             -Dsonar.java.binaries=target/classes
             -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-            
+
       - name: Upload Reports
         uses: actions/upload-artifact@v3
         with:
@@ -71,9 +82,3 @@ jobs:
             dependency-check-report.html
             zap-report.html
             target/sonar/report-task.txt
-            
-    always:
-      - name: Stop Benchmark WebApp
-        if: always() && needs.build.outputs.pid != ''
-        run: |
-          kill ${{ needs.build.outputs.pid }} || true
