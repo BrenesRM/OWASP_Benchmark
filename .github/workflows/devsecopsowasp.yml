@@ -61,7 +61,6 @@ jobs:
         with:
           target: 'http://localhost:8080/benchmark'
           rules_file_name: 'OWASP-Benchmark.rules'
-          alert_on_risk: 'High,Medium'
         continue-on-error: true
 
       - name: Run Dependency Check
@@ -69,8 +68,8 @@ jobs:
         with:
           project: 'OWASP-Benchmark'
           format: 'HTML'
-          fail_on_cvss: 7
-          scan_path: './target'
+          path: './target'
+          out: 'dependency-check-report.html'
         continue-on-error: true
 
       - name: SonarQube Scan
@@ -81,6 +80,7 @@ jobs:
             -Dsonar.projectKey=OWASP-Benchmark
             -Dsonar.java.binaries=target/classes
             -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+          token: ${{ secrets.SONAR_TOKEN }}
         continue-on-error: true
 
       - name: Ensure report files exist
