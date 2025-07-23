@@ -5,11 +5,20 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up JDK
-        uses: actions/setup-java@v1
-      - name: Build with Maven
-        run: mvn clean install
+    - uses: actions/checkout@v4
+    - name: Set up JDK
+      uses: actions/setup-java@v3
+      with:
+        java-version: '11'  # OWASP Benchmark works with Java 8 or 11
+        distribution: 'temurin'  # Eclipse Temurin is recommended
+        
+    - name: Build with Maven
+      run: mvn clean install
+      
+    - name: Run OWASP Benchmark
+      run: |
+        cd target
+        java -jar benchmark.jar -Dfile.encoding=UTF-8
         
   security_scan:
     needs: build
