@@ -10,7 +10,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Required for Spotless
+          fetch-depth: 0
+          ref: main  # ✅ Ensure we fetch correct default branch
 
       - name: Set up JDK
         uses: actions/setup-java@v3
@@ -18,30 +19,34 @@ jobs:
           java-version: '11'
           distribution: 'temurin'
 
-      - name: Build with Maven (Skip Spotless Check)
+      - name: Build with Maven (Skip Spotless, Use origin/main)
         run: |
-          mvn clean install -Dspotless.check.skip=true -Dspotless.maven.plugin.skip=true -Dmaven.test.skip=true
+          mvn clean install \
+              -Dspotless.check.skip=true \
+              -Dspotless.maven.plugin.skip=true \
+              -DratchetFrom=origin/main \
+              -Dmaven.test.skip=true
 
       - name: Start Benchmark WebApp
         run: |
           cd target
           nohup java -jar benchmark.jar -Dfile.encoding=UTF-8 > benchmark.log 2>&1 &
-          sleep 30
+          sleep 30  # Give the app time to start
 
       - name: Save Benchmark PID
         id: save-pid
         run: |
           echo "pid=$(pgrep -f 'java.*benchmark.jar')" >> $GITHUB_OUTPUT
 
-      - name: Stop Benchmark WebApp (Always Runs)
+      - name: Stop Benchmark WebApp (Always runs)
         if: always()
         run: |
           PID=$(pgrep -f 'java.*benchmark.jar') || true
           if [[ -n "$PID" ]]; then
             kill $PID || true
-            echo "Benchmark stopped (PID=$PID)"
+            echo "Stopped Benchmark WebApp with PID $PID"
           else
-            echo "No Benchmark process found."
+            echo "No Benchmark WebApp running"
           fi
 
   security_scan:
